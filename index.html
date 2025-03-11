@@ -14,18 +14,20 @@
     <script>
         async function fetchWeatherData() {
             try {
-                const serviceKey = "4WbcPl8cpZjq8VXOePfsXjYGid7SRm5olpV5s6WVU2qwe6cuzQCFIwqjhf45FV1x0fEtTkZnwFEoLZSG%2B69j6g%3D%3D";  // 🔹 기상청 API 서비스 키 입력
+                // 🔹 CORS 프록시를 이용하여 API 호출
+                const CORS_PROXY = "https://cors-anywhere.herokuapp.com/";  
+                const API_URL = "https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst";
+                const serviceKey = "여기에_서비스키"; // 🔹 기상청 API 서비스 키 입력
                 const baseDate = new Date().toISOString().split('T')[0].replace(/-/g, ""); // 오늘 날짜 (YYYYMMDD)
                 const baseTime = "0500"; // 기본 발표 시간
                 const nx = 60; // X 좌표 (서울)
                 const ny = 127; // Y 좌표 (서울)
 
-                // 🔹 기상청 API URL
-                const apiUrl = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst?serviceKey=${serviceKey}&pageNo=1&numOfRows=100&dataType=JSON&base_date=${baseDate}&base_time=${baseTime}&nx=${nx}&ny=${ny}`;
+                const FULL_URL = `${CORS_PROXY}${API_URL}?serviceKey=${serviceKey}&numOfRows=100&pageNo=1&dataType=JSON&base_date=${baseDate}&base_time=${baseTime}&nx=${nx}&ny=${ny}`;
 
-                console.log("📌 API 요청 중: ", apiUrl);
+                console.log("📌 API 요청 중: ", FULL_URL);
 
-                const response = await fetch(apiUrl);
+                const response = await fetch(FULL_URL);
                 const jsonData = await response.json();
                 
                 console.log("📌 API 응답 데이터:", jsonData);
@@ -36,7 +38,6 @@
                 }
 
                 const items = jsonData.response.body.items.item;
-
                 let tempData = {};
                 let humidityData = {};
 
@@ -52,7 +53,7 @@
                 console.log("📌 기온 데이터:", tempData);
                 console.log("📌 습도 데이터:", humidityData);
 
-                // 🔹 08시~20시 데이터 필터링 후 체감온도 계산
+                // 🔹 체감온도 계산 (08시~20시 데이터 필터링)
                 let forecastData = [];
 
                 Object.keys(tempData).forEach(time => {
@@ -122,6 +123,7 @@
             }
         }
 
+        // 🔹 웹페이지가 로드되면 API 호출
         fetchWeatherData();
     </script>
 </body>
