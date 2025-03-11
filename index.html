@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>시간별 체감온도 예보 (도넛 그래프)</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+</head>
+<body>
+    <h2>시간별 체감온도 예보 (도넛 그래프)</h2>
+    <canvas id="tempChart" width="500" height="500"></canvas>
+
+    <script>
+        async function fetchWeatherData() {
+            try {
+                const serviceKey = "4WbcPl8cpZjq8VXOePfsXjYGid7SRm5olpV5s6WVU2qwe6cuzQCFIwqjhf45FV1x0fEtTkZnwFEoLZSG%2B69j6g%3D%3D";  // 🔹 기상청 API 서비스 키 입력
+                const baseDate = new Date().toISOString().split('T')[0].replace(/-/g, ""); // 오늘 날짜 (YYYYMMDD)
+                const baseTime = "0500"; // 기본 발표 시간
+                const nx = 60; // X 좌표 (서울)
+                const ny = 127; // Y 좌표 (서울)
+
+                // 🔹 기상청 API URL
+                const apiUrl = `https://apis.data.go.kr/1360000/VilageFcstInfoService_2.0/getVilageFcst?serviceKey=${serviceKey}&pageNo=1&numOfRows=100&dataType=JSON&base_date=${baseDate}&base_time=${baseTime}&nx=${nx}&ny=${ny}`;
+
+                console.log("📌 API 요청 중: ", apiUrl);
+
+                const response = await fetch(apiUrl);
+                const jsonData = await response.json();
+                
+                console.log("📌 API 응답 데이터:", jsonData);
+
+                if (!jsonData.response || !jsonData.response.body || !jsonData.response.body.items) {
+                    alert("체감온도 데이터를 가져올 수 없습니다.");
+                    return;
+                }
+
+                const items = jsonData.response.body.items.item;
+
+                let tempData = {};
+                let humidityData = {};
+
+                // 🔹 기온(TMP) 및 습도(REH) 데이터 추출
+                items.forEach(item => {
+                    if (item.category === "TMP") {
+                        tempData[item.fcstTime] = parseFloat(item.fcstValue);
+                    } else if (item.category === "REH") {
+                        humidityData[item.fcstTime] = parseFloat(item.fcstValue);
+                    }
+                });
+
+                console.log("📌 기온 데이터:", tempData);
+                console.log("📌 습도 데이터:", humidityData);
+
+                // 🔹 08시~20시 데이터 필터링 후 체감온도 계산
+                let forecastData = [];
+
+                Object.keys(tempData).forEach(time => {
+                    let Ta = tempData[time]; // 기온 (°C)
+                    let RH = humidityData[time] || 50; // 상대습도 (%), 기본값 50%
+
+                    // 🔹 Stull의 습구온도(Tw) 공식 적용
+                    let Tw = (Ta * Math.atan(0.151977 * Math.sqrt(RH + 8.313659)) +
+                              Math.atan(Ta + RH) - Math.atan(RH - 1.67633) +
+                              0.00391838 * Math.pow(RH, 1.5) * Math.atan(0.023101 * RH) - 4.686035);
+
+                    // 🔹 체감온도 공식 적용
+                    let feelsLikeTemp = (-0.2442 + 0.55399 * Tw + 0.45535 * Ta - 
+                                         0.0022 * Math.pow(Tw, 2) + 0.00278 * Tw * Ta + 3.0);
+
+                    forecastData.push({
+                        time: time,
+                        feels_like: Math.round(feelsLikeTemp * 10) / 10
+                    });
+                });
+
+                // 🔹 08시~20시 데이터만 필터링
+                forecastData = forecastData.filter(item => {
+                    let hour = parseInt(item.time.slice(0, 2));
+                    return hour >= 8 && hour <= 20;
+                });
+
+                if (forecastData.length === 0) {
+                    alert("오늘 08시~20시 사이의 체감온도 데이터가 없습니다.");
+                    return;
+                }
+
+                const labels = forecastData.map(item => `${item.time.slice(0, 2)}시`);
+                const feelsLikeTemps = forecastData.map(item => item.feels_like);
+
+                const ctx = document.getElementById('tempChart').getContext('2d');
+                Chart.register(ChartDataLabels);
+
+                new Chart(ctx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: '체감온도 (°C)',
+                            data: feelsLikeTemps,
+                            backgroundColor: feelsLikeTemps.map(temp => temp >= 30 ? 'red' : 'skyblue'),
+                            borderColor: 'white',
+                            borderWidth: 2
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: { enabled: true },
+                            datalabels: {
+                                color: 'black',
+                                font: { weight: 'bold', size: 14 },
+                                formatter: (value) => value + "°C"
+                            }
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error("🚨 데이터 로딩 중 오류 발생:", error);
+                alert("데이터 로딩 실패! (F12 Console에서 오류 메시지 확인)");
+            }
+        }
+
+        fetchWeatherData();
+    </script>
+</body>
+</html>
